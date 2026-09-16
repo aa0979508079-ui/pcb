@@ -9,3 +9,4 @@ requests
 torch
 torchvision
 opencv-python-headless
+onnxruntime
