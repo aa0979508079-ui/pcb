@@ -168,7 +168,8 @@ def generate_pdf_report(records_df):
     )
     pdf.ln()
 
-  return pdf.output()
+  # 修復 fpdf2 匯出問題，確保回傳為 bytearray
+  return bytes(pdf.output())
 
 
 # ---------------------------------------------------------
@@ -562,7 +563,7 @@ elif page == "📋 歷史檢測紀錄看板":
         pdf_bytes = generate_pdf_report(db_df)
         st.download_button(
             label="📄 下載 PDF 工業檢測報告",
-            data=bytes(pdf_bytes),
+            data=pdf_bytes,  # 移除原本多餘的 bytes() 包裹
             file_name=f"PCB_AOI_Report_{datetime.date.today()}.pdf",
             mime="application/pdf",
         )
