@@ -103,7 +103,7 @@ def send_batch_alert_notification(
 
 
 # ---------------------------------------------------------
-# 【PDF 報告生成模組】
+# 【PDF 報告生成模組 - 修正編碼與解析錯誤】
 # ---------------------------------------------------------
 def sanitize_text(text):
   return str(text).encode("latin-1", "replace").decode("latin-1")
@@ -141,19 +141,16 @@ def generate_pdf_report(records_df):
   pdf.set_font("Helvetica", "", 9)
   pdf.set_text_color(0, 0, 0)
 
-  defect_zh_to_en = {
-      "漏孔": "missing_hole",
-      "鼠咬": "mouse_bite",
-      "突起": "spur",
-      "短路": "short",
-      "斷路": "open_circuit",
-      "雜銅": "spurious_copper",
-      "無": "None",
-  }
-
   for _, row in records_df.iterrows():
     raw_defect = str(row["主要瑕疵"])
-    primary_en = defect_zh_to_en.get(raw_defect, raw_defect)
+
+    # 解析並過濾中文字串，僅保留英文名稱避免 FPDF 崩潰
+    if "(" in raw_defect and ")" in raw_defect:
+      primary_en = raw_defect.split("(")[1].replace(")", "").strip()
+    elif raw_defect == "無":
+      primary_en = "None"
+    else:
+      primary_en = sanitize_text(raw_defect)
 
     pdf.cell(col_widths[0], 7, sanitize_text(row["ID"]), border=1, align="C")
     pdf.cell(col_widths[1], 7, sanitize_text(row["時間"]), border=1, align="C")
@@ -162,14 +159,14 @@ def generate_pdf_report(records_df):
     pdf.cell(
         col_widths[3], 7, sanitize_text(row["瑕疵數量"]), border=1, align="C"
     )
-    pdf.cell(col_widths[4], 7, sanitize_text(primary_en), border=1, align="C")
+    pdf.cell(col_widths[4], 7, primary_en, border=1, align="C")
     pdf.cell(
         col_widths[5], 7, sanitize_text(row["推論引擎"]), border=1, align="C"
     )
     pdf.ln()
 
-  # 修復 fpdf2 匯出問題，確保回傳為 bytearray
-  return bytes(pdf.output())
+  # 安全地以 latin-1 轉碼成 bytearray 供 Streamlit 下載
+  return pdf.output(dest="S").encode("latin-1")
 
 
 # ---------------------------------------------------------
@@ -563,7 +560,7 @@ elif page == "📋 歷史檢測紀錄看板":
         pdf_bytes = generate_pdf_report(db_df)
         st.download_button(
             label="📄 下載 PDF 工業檢測報告",
-            data=pdf_bytes,  # 移除原本多餘的 bytes() 包裹
+            data=pdf_bytes,
             file_name=f"PCB_AOI_Report_{datetime.date.today()}.pdf",
             mime="application/pdf",
         )
